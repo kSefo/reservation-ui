@@ -1,0 +1,4 @@
+{
+    "API_URL_HOST": "http://localhost:8080",
+    "PAGING_DAYS": 7
+}

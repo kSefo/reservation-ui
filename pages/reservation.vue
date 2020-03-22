@@ -1,36 +1,30 @@
 <template>
   <v-layout>
     <v-flex class="text-center">
-      <v-layout row wrap justify-start class="pt-3 pb-3">
-        <v-btn>前の一週間</v-btn>
+      <v-layout row wrap justify-start class="px-3 py-3">
+        <v-btn @click.native="beforeWeek">前の一週間</v-btn>
         <v-spacer></v-spacer>
-        <v-btn>次の一週間</v-btn>
+        <v-btn @click.native="nextWeek">次の一週間</v-btn>
       </v-layout>
 
+      {{ formatDate(baseDate ,'YYYY年MM月') }}
+      <br>
       <v-simple-table>
         <template v-slot:default>
           <thead>
             <tr>
               <th class="text-center">時間</th>
-              <th class="text-center">1<br>(日)</th>
-              <th class="text-center">2<br>(月)</th>
-              <th class="text-center">3<br>(火)</th>
-              <th class="text-center">4<br>(水)</th>
-              <th class="text-center">5<br>(木)</th>
-              <th class="text-center">6<br>(金)</th>
-              <th class="text-center">7<br>(土)</th>
+              <th class="text-center" v-for="item in days" :key="item.day">
+                {{ item.day }}<br>({{ item.dayOfWeek }})
+              </th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in schedule" :key="item.name">
-              <td class="text-center">{{ item.time }}</td>
-              <td class="text-center">{{ item.sun }}</td>
-              <td class="text-center">{{ item.mon }}</td>
-              <td class="text-center">{{ item.tue }}</td>
-              <td class="text-center">{{ item.wed }}</td>
-              <td class="text-center">{{ item.thu }}</td>
-              <td class="text-center">{{ item.fri }}</td>
-              <td class="text-center">{{ item.sat }}</td>
+            <tr v-for="reservable in reservableList" :key="reservable.time">
+              <td class="text-center">{{ reservable.time }}</td>
+              <td class="text-center" v-for="day in days" :key="day.day">
+                {{ reservable[day.dayOfWeek] }}
+              </td>
             </tr>
           </tbody>
         </template>
@@ -41,112 +35,71 @@
 </template>
 
 <script>
+  import _ from 'lodash'
+  import axios from 'axios'
+  import constant from '@/static/constant.json'
+  import reservationInfo from '@/static/reservationInfo.json'
+  import reservationStatus from '@/static/reservationStatus.json'
+  import dateUtilsMixin from '@/plugins/dateUtilsMixin'
   export default {
-    data () {
-      return {
-        schedule: [
-          {
-            time: '10:00',
-            sun: '◎',
-            mon: '◎',
-            tue: '◎',
-            wed: '◎',
-            thu: '◎',
-            fri: '◎',
-            sat: '◎',
-          },
-          {
-            time: '11:00',
-            sun: '◎',
-            mon: '◎',
-            tue: '◎',
-            wed: '◎',
-            thu: '◎',
-            fri: '◎',
-            sat: '◎',
-          },
-          {
-            time: '12:00',
-            sun: '◎',
-            mon: '◎',
-            tue: '◎',
-            wed: '◎',
-            thu: '◎',
-            fri: '◎',
-            sat: '◎',
-          },
-          {
-            time: '13:00',
-            sun: '◎',
-            mon: '◎',
-            tue: '◎',
-            wed: '◎',
-            thu: '◎',
-            fri: '◎',
-            sat: '◎',
-          },
-          {
-            time: '14:00',
-            sun: '◎',
-            mon: '◎',
-            tue: '◎',
-            wed: '◎',
-            thu: '◎',
-            fri: '◎',
-            sat: '◎',
-          },
-          {
-            time: '15:00',
-            sun: '◎',
-            mon: '◎',
-            tue: '◎',
-            wed: '◎',
-            thu: '◎',
-            fri: '◎',
-            sat: '◎',
-          },
-          {
-            time: '16:00',
-            sun: '◎',
-            mon: '◎',
-            tue: '◎',
-            wed: '◎',
-            thu: '◎',
-            fri: '◎',
-            sat: '◎',
-          },
-          {
-            time: '17:00',
-            sun: '◎',
-            mon: '◎',
-            tue: '◎',
-            wed: '◎',
-            thu: '◎',
-            fri: '◎',
-            sat: '◎',
-          },
-          {
-            time: '18:00',
-            sun: '◎',
-            mon: '◎',
-            tue: '◎',
-            wed: '◎',
-            thu: '◎',
-            fri: '◎',
-            sat: '◎',
-          },
-          {
-            time: '19:00',
-            sun: '◎',
-            mon: '◎',
-            tue: '◎',
-            wed: '◎',
-            thu: '◎',
-            fri: '◎',
-            sat: '◎',
-          },
-        ],
-      }
+    mixins: [
+      dateUtilsMixin,
+    ],
+    data: () => ({
+      baseDate: '',
+      days: [],
+      reservations: [],
+      reservableList: [],
+    }),
+    async created() {
+      this.createReservableList(this.getNow('YYYY-MM-DD'))
+    },
+    methods: {
+      createTimeSchedule(days) {
+        return _.cloneDeep(reservationInfo.timeSchedule).map((schedule) => {
+          days.forEach((day) => {
+            schedule[day.dayOfWeek] = reservationStatus.reservable
+          })
+          return schedule
+        })
+      },
+      async createReservableList(date) {
+        this.baseDate = this.getMoment(date, 'YYYY-MM-DD')
+        this.days = this.getDays(this.baseDate, constant.PAGING_DAYS)
+
+        const dateFrom = this.formatDate(this.baseDate, 'YYYY-MM-DD')
+        const dateTo = this.formatDate(this.getAddDays(this.baseDate, constant.PAGING_DAYS - 1), 'YYYY-MM-DD')
+        await axios({
+          method: 'GET',
+          url: `${constant.API_URL_HOST}/reservation`,
+          params: {
+            reservationDateFrom: dateFrom,
+            reservationDateTo: dateTo
+          }
+        }).then((response) => {
+          this.reservations = response.data;
+        }).catch();
+
+        this.reservableList = this.createTimeSchedule(this.days)
+
+        this.reservations.forEach(async (reservation) => {
+          const reservationDateTime = this.getMoment(reservation.reservation_datetime).utc()
+          const time = this.formatDate(reservationDateTime, 'HH:mm')
+          const dayOfWeek = this.getDayOfWeek(reservationDateTime)
+          
+          this.reservableList.map((timeSchedule) => {
+            if (timeSchedule.time === time) {
+              timeSchedule[dayOfWeek] = reservationStatus.notReservable
+            };
+          });
+        })
+      },
+      beforeWeek() {
+        this.createReservableList(this.getSubstractDays(this.baseDate, constant.PAGING_DAYS - 1))
+      },
+      nextWeek() {
+        this.createReservableList(this.getAddDays(this.baseDate, constant.PAGING_DAYS - 1))
+      },
     },
   }
 </script>
